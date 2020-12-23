@@ -368,7 +368,8 @@ class MQTT:
         while True:
             op = self._wait_for_msg()
             if op == 32:
-                rc = self._sock.recv(3)
+                rc = bytearray(3)
+                self._sock.recv_into(rc, 3)
                 assert rc[0] == 0x02
                 if rc[2] != 0x00:
                     raise MMQTTException(CONNACK_ERRORS[rc[2]])
@@ -406,7 +407,8 @@ class MQTT:
         while True:
             op = self._wait_for_msg(0.5)
             if op == 208:
-                ping_resp = self._sock.recv(2)
+                ping_resp = bytearray(2)
+                self._sock.recv_into(ping_resp, 2)
                 if ping_resp[0] != 0x00:
                     raise MMQTTException("PINGRESP not returned from broker.")
             return
@@ -504,9 +506,11 @@ class MQTT:
             while True:
                 op = self._wait_for_msg()
                 if op == 0x40:
-                    sz = self._sock.recv(1)
+                    sz = bytearray(1)
+                    self._sock.recv_into(sz, 1)
                     assert sz == b"\x02"
-                    rcv_pid = self._sock.recv(2)
+                    rcv_pid = bytearray(2)
+                    self._sock.recv_into(rcv_pid, 2)
                     rcv_pid = rcv_pid[0] << 0x08 | rcv_pid[1]
                     if pid == rcv_pid:
                         if self.on_publish is not None:
@@ -589,7 +593,8 @@ class MQTT:
         while True:
             op = self._wait_for_msg()
             if op == 0x90:
-                rc = self._sock.recv(4)
+                rc = bytearray(4)
+                self._sock.recv_into(rc, 4)
                 assert rc[1] == packet[2] and rc[2] == packet[3]
                 if rc[3] == 0x80:
                     raise MMQTTException("SUBACK Failure!")
@@ -652,7 +657,8 @@ class MQTT:
         while True:
             op = self._wait_for_msg()
             if op == 176:
-                return_code = self._sock.recv(3)
+                return_code = bytearray(3)
+                self._sock.recv_into(return_code, 3)
                 assert return_code[0] == 0x02
                 # [MQTT-3.32]
                 assert (
@@ -709,27 +715,33 @@ class MQTT:
         """Reads and processes network events.
         Returns response code if successful.
         """
-        res = self._sock.recv(1)
+        res = bytearray(1)
+        self._sock.recv_into(res, 1)
         self._sock.settimeout(timeout)
         if res in [None, b""]:
             return None
         if res == MQTT_PINGRESP:
-            sz = self._sock.recv(1)[0]
+            sz = bytearray(1)
+            self._sock.recv_into(sz, 1)[0]
             assert sz == 0
             return None
         if res[0] & 0xF0 != 0x30:
             return res[0]
         sz = self._recv_len()
-        topic_len = self._sock.recv(2)
+        topic_len = bytearray(2)
+        self._sock.recv_into(topic_len, 2)
         topic_len = (topic_len[0] << 8) | topic_len[1]
-        topic = self._sock.recv(topic_len)
+        topic = bytearray(topic_len)
+        self._sock.recv_into(topic, topic_len)
         topic = str(topic, "utf-8")
         sz -= topic_len + 2
         if res[0] & 0x06:
-            pid = self._sock.recv(2)
+            pid = bytearray(2)
+            self._sock.recv_into(pid, 2)
             pid = pid[0] << 0x08 | pid[1]
             sz -= 0x02
-        msg = self._sock.recv(sz)
+        msg = bytearray(sz)
+        self._sock.recv_into(msg, sz)
         self._handle_on_message(self, topic, str(msg, "utf-8"))
         if res[0] & 0x06 == 0x02:
             pkt = bytearray(b"\x40\x02\0\0")
@@ -743,7 +755,8 @@ class MQTT:
         n = 0
         sh = 0
         while True:
-            b = self._sock.recv(1)[0]
+            b = bytearray(1)
+            self._sock.recv_into(b, 1)[0]
             n |= (b & 0x7F) << sh
             if not b & 0x80:
                 return n
